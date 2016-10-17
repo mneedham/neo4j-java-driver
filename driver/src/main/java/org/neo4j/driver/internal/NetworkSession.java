@@ -47,7 +47,7 @@ public class NetworkSession implements Session
     private String lastBookmark = null;
 
     // Called when a transaction object is closed
-    private final Runnable txCleanup = new Runnable()
+    protected final Runnable txCleanup = new Runnable()
     {
         @Override
         public void run()
@@ -200,25 +200,7 @@ public class NetworkSession implements Session
     {
         ensureConnectionIsValidBeforeOpeningTransaction();
         currentTransaction = new ExplicitTransaction( connection, txCleanup, bookmark );
-        connection.onError( new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                // must check if transaction has been closed
-                if ( currentTransaction != null )
-                {
-                    if ( connection.hasUnrecoverableErrors() )
-                    {
-                        currentTransaction.markToClose();
-                    }
-                    else
-                    {
-                        currentTransaction.failure();
-                    }
-                }
-            }
-        } );
+        connection.onError( new OnConnectionError(currentTransaction, connection) );
         return currentTransaction;
     }
 
@@ -242,7 +224,7 @@ public class NetworkSession implements Session
         ensureConnectionIsOpen();
     }
 
-    private void ensureConnectionIsValidBeforeOpeningTransaction()
+    protected void ensureConnectionIsValidBeforeOpeningTransaction()
     {
         ensureSessionIsOpen();
         ensureNoUnrecoverableError();
@@ -312,6 +294,35 @@ public class NetworkSession implements Session
                     "You get this error either because you have a bad reference to a session that has already be " +
                     "closed " +
                     "or you are trying to reuse a session that you have called `reset` on it." );
+        }
+    }
+
+    protected class OnConnectionError implements Runnable
+    {
+        private final Connection connection;
+        private final ExplicitTransaction currentTransaction;
+
+        public OnConnectionError( ExplicitTransaction currentTransaction, Connection connection )
+        {
+            this.currentTransaction = currentTransaction;
+            this.connection = connection;
+        }
+
+        @Override
+        public void run()
+        {
+            // must check if transaction has been closed
+            if ( currentTransaction != null )
+            {
+                if ( connection.hasUnrecoverableErrors() )
+                {
+                    this.currentTransaction.markToClose();
+                }
+                else
+                {
+                    this.currentTransaction.failure();
+                }
+            }
         }
     }
 }

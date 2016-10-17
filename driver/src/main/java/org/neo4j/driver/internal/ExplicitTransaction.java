@@ -67,7 +67,7 @@ class ExplicitTransaction implements Transaction
     }
 
     private final Runnable cleanup;
-    private final Connection conn;
+    protected final Connection conn;
 
     private String bookmark = null;
     private State state = State.ACTIVE;

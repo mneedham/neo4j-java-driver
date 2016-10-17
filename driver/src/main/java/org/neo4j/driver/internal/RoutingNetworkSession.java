@@ -24,6 +24,7 @@ import org.neo4j.driver.internal.spi.Connection;
 import org.neo4j.driver.v1.AccessMode;
 import org.neo4j.driver.v1.Statement;
 import org.neo4j.driver.v1.StatementResult;
+import org.neo4j.driver.v1.Transaction;
 import org.neo4j.driver.v1.exceptions.ClientException;
 import org.neo4j.driver.v1.exceptions.ConnectionFailureException;
 import org.neo4j.driver.v1.exceptions.Neo4jException;
@@ -35,6 +36,7 @@ public class RoutingNetworkSession extends NetworkSession
 {
     private final AccessMode mode;
     private final RoutingErrorHandler onError;
+    private RoutingExplicitTransaction currentTransaction;
 
     RoutingNetworkSession( AccessMode mode, Connection connection,
             RoutingErrorHandler onError )
@@ -42,6 +44,21 @@ public class RoutingNetworkSession extends NetworkSession
         super( connection );
         this.mode = mode;
         this.onError = onError;
+    }
+
+    @Override
+    public Transaction beginTransaction()
+    {
+        return beginTransaction(null);
+    }
+
+    @Override
+    public synchronized Transaction beginTransaction( String bookmark )
+    {
+        ensureConnectionIsValidBeforeOpeningTransaction();
+        currentTransaction = new RoutingExplicitTransaction( connection, mode, onError, txCleanup, bookmark );
+        connection.onError( new OnConnectionError(currentTransaction, connection) );
+        return currentTransaction;
     }
 
     @Override
